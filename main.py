@@ -18,16 +18,24 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 import models, auth
 from database import engine, get_db
+from scraper.bing_scraper import BingSearchScraper
+from scraper.jina_scraper import JinaContentExtractor
 
 load_dotenv()
 
 app = FastAPI()
 
+# Get allowed origins from environment variable or use default
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS", 
+    "http://localhost:3000,http://localhost:8000"
+).split(",")
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -54,6 +62,8 @@ content_scraper = ContentScraper()
 
 # Initialize scrapers
 youtube_scraper = YouTubeScraper()
+bing_scraper = BingSearchScraper()
+content_extractor = JinaContentExtractor()
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -118,22 +128,46 @@ async def generate_course(
         # Generate course outline
         outline = await llm.generate_course_outline(conversation.conversation)
         
-        # Find videos for each learning point in each topic
+        # Find resources for each learning point in each topic
         topics_with_resources = []
         for topic in outline["topics"]:
             learning_points_with_resources = []
             
             for point in topic["learningPoints"]:
-                print("Searching for videos for learning point: ", point["searchQuery"])
-                # Search for videos using the optimized search query
+                print(f"Searching resources for learning point: {point['searchQuery']}")
+                
+                # Get YouTube videos
                 videos = youtube_scraper.search_video(
                     point["searchQuery"],
-                    max_results=2  # Get top 2 videos per learning point
+                    max_results=2
                 )
+                
+                # Get Bing search results
+                articles = bing_scraper.search(point["searchQuery"])
+                
+                # Extract content from web pages
+                web_content = []
+                for article in articles:
+                    content = content_extractor.extract_content(article["url"])
+                    if content:
+                        # Use Gemini to extract relevant information
+                        processed_content = await llm.process_web_content(
+                            content=content,
+                            topic=point["title"],
+                            context=point["description"]
+                        )
+                        if processed_content:
+                            web_content.append({
+                                "type": "article",
+                                "title": article["title"],
+                                "url": article["url"],
+                                "content": processed_content,
+                                "source": "Web"
+                            })
                 
                 learning_point_with_resources = {
                     **point,
-                    "resources": videos
+                    "resources": videos + web_content
                 }
                 learning_points_with_resources.append(learning_point_with_resources)
             
@@ -143,7 +177,7 @@ async def generate_course(
             }
             topics_with_resources.append(topic_with_resources)
         
-        # Create the final course structure
+        # Create final course structure
         course_data = {
             **outline,
             "topics": topics_with_resources

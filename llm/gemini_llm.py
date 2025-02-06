@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.memory import ConversationBufferMemory
@@ -145,4 +145,29 @@ class GeminiLLM(BaseLLM):
                 json_str = json_str.split("```json")[1].split("```")[0]
             return json.loads(json_str)
         except Exception as e:
-            raise Exception(f"Failed to parse lesson detail: {str(e)}") 
+            raise Exception(f"Failed to parse lesson detail: {str(e)}")
+
+    async def process_web_content(self, content: str, topic: str, context: str) -> Optional[str]:
+        try:
+            system_prompt = f"""Extract and summarize relevant information about '{topic}' from the following content.
+            Context: {context}
+            
+            Focus on:
+            1. Key concepts and definitions
+            2. Important principles
+            3. Practical applications
+            4. Examples and explanations
+            
+            Format the output as a clear, concise explanation that complements the learning point.
+            """
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content}
+            ]
+
+            response = self.llm.invoke(messages)
+            return response.content.strip()
+        except Exception as e:
+            print(f"Error processing web content: {str(e)}")
+            return None 
