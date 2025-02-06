@@ -20,6 +20,9 @@ import models, auth
 from database import engine, get_db
 from scraper.bing_scraper import BingSearchScraper
 from scraper.jina_scraper import JinaContentExtractor
+from scraper.google_scraper import GoogleSearchScraper
+from scraper.duckduckgo_scraper import DuckDuckGoScraper
+# from scraper.web_scraper import WebScraper
 
 load_dotenv()
 
@@ -64,6 +67,9 @@ content_scraper = ContentScraper()
 youtube_scraper = YouTubeScraper()
 bing_scraper = BingSearchScraper()
 content_extractor = JinaContentExtractor()
+google_scraper = GoogleSearchScraper()
+duckduckgo_scraper = DuckDuckGoScraper()
+web_scraper = JinaContentExtractor()
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -128,13 +134,13 @@ async def generate_course(
         # Generate course outline
         outline = await llm.generate_course_outline(conversation.conversation)
         
-        # Find resources for each learning point in each topic
+        # Process each topic and learning point
         topics_with_resources = []
-        for topic in outline["topics"]:
+        for topic in outline["topics"][:2]:
             learning_points_with_resources = []
             
-            for point in topic["learningPoints"]:
-                print(f"Searching resources for learning point: {point['searchQuery']}")
+            for point in topic["learningPoints"][:2]:
+                print(f"Processing learning point: {point['title']}")
                 
                 # Get YouTube videos
                 videos = youtube_scraper.search_video(
@@ -142,40 +148,40 @@ async def generate_course(
                     max_results=2
                 )
                 
-                # Get Bing search results
-                articles = bing_scraper.search(point["searchQuery"])
+                # Get DuckDuckGo search results instead of Google
+                articles = duckduckgo_scraper.search(point["searchQuery"])
+                print("articles: ", articles)
                 
-                # Extract content from web pages
-                web_content = []
+                # Extract and process content from web pages
+                web_contents = []
+                all_content = ""
+                
                 for article in articles:
-                    content = content_extractor.extract_content(article["url"])
+                    content = web_scraper.extract_content(article["url"])
                     if content:
-                        # Use Gemini to extract relevant information
-                        processed_content = await llm.process_web_content(
-                            content=content,
-                            topic=point["title"],
-                            context=point["description"]
-                        )
-                        if processed_content:
-                            web_content.append({
-                                "type": "article",
-                                "title": article["title"],
-                                "url": article["url"],
-                                "content": processed_content,
-                                "source": "Web"
-                            })
+                        all_content += f"\n\nSource: {article['title']}\n{content}"
                 
+                if all_content:
+                    # Process combined content with LLM
+                    processed_content = await llm.process_learning_content(
+                        content=all_content,
+                        topic=point["title"],
+                        context=point["description"]
+                    )
+                    print("processed_content: ", processed_content)
+                
+                # Combine resources
                 learning_point_with_resources = {
                     **point,
-                    "resources": videos + web_content
+                    "resources": videos,
+                    "content": processed_content if processed_content else ""
                 }
                 learning_points_with_resources.append(learning_point_with_resources)
             
-            topic_with_resources = {
+            topics_with_resources.append({
                 **topic,
                 "learningPoints": learning_points_with_resources
-            }
-            topics_with_resources.append(topic_with_resources)
+            })
         
         # Create final course structure
         course_data = {
@@ -200,6 +206,7 @@ async def generate_course(
             "createdAt": db_course.created_at.isoformat(),
             "updatedAt": db_course.updated_at.isoformat()
         }
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

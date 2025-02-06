@@ -171,3 +171,67 @@ class GeminiLLM(BaseLLM):
         except Exception as e:
             print(f"Error processing web content: {str(e)}")
             return None 
+
+    async def process_learning_content(self, content: str, topic: str, context: str) -> Optional[str]:
+        try:
+            system_prompt = f"""Create clear and engaging learning material about '{topic}' from the following content.
+            Context: {context}
+            
+            Format the content in markdown with the following structure:
+
+            # {topic}
+            [Brief introduction to the topic - 2-3 sentences]
+
+            ## Core Concepts
+            [Brief paragraph explaining the foundational ideas]
+
+            ### Key Concepts:
+            * **[First concept]**: [Clear explanation]
+            * **[Second concept]**: [Clear explanation]
+            * **[Third concept]**: [Clear explanation]
+
+            ## Important Points
+            * [First key point with explanation]
+            * [Second key point with explanation]
+            * [Third key point with explanation]
+
+            ## Practical Examples
+
+            ### Example 1: [Example Title]
+            [Detailed explanation of the first example]
+            
+            > **Note**: [Important observation or tip about the example]
+
+            ### Example 2: [Example Title]
+            [Detailed explanation of the second example]
+
+            ## Summary
+            [Concise summary paragraph highlighting main points]
+
+            ---
+
+            **Key Takeaways:**
+            1. [First takeaway]
+            2. [Second takeaway]
+            3. [Third takeaway]
+
+            Formatting guidelines:
+            - Use markdown headers (#, ##, ###)
+            - Use bold (**) for emphasis
+            - Use bullet points (*) for lists
+            - Use numbered lists (1., 2., etc.) for steps
+            - Use blockquotes (>) for important notes
+            - Keep paragraphs short and clear
+            - Use simple, engaging language
+            """
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content}
+            ]
+
+            response = self.llm.invoke(messages)
+            return response.content.strip()
+        except Exception as e:
+            print(f"Error processing learning content: {str(e)}")
+            return None 
