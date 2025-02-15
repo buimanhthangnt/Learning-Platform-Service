@@ -67,11 +67,12 @@ class GeminiLLM(BaseLLM):
         }
 
         Make sure:
-        1. Each topic has 3-5 specific learning points
+        1. Each topic has 3-4 specific learning points
         2. Learning point titles are specific and searchable
         3. Search queries are optimized for finding tutorial videos
         4. Topics follow a logical progression
         5. Descriptions are clear and concise
+        6. The number of topics is between 3 and 4
         """
 
         chat_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation])
@@ -159,6 +160,7 @@ class GeminiLLM(BaseLLM):
             4. Examples and explanations
             
             Format the output as a clear, concise explanation that complements the learning point.
+            If the content is not relevant to the learning point, just return empty string.
             """
             
             messages = [

@@ -36,6 +36,7 @@ from smolagents import (
     Model,
     ToolCallingAgent,
 )
+from deep_research.prompts import *
 import litellm
 
 litellm.drop_params=True
@@ -98,7 +99,7 @@ os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
 def create_agent_hierarchy(model: Model):
-    text_limit = 20000
+    text_limit = 100000
     ti_tool = TextInspectorTool(model, text_limit)
 
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
@@ -116,14 +117,13 @@ def create_agent_hierarchy(model: Model):
     text_webbrowser_agent = ToolCallingAgent(
         model=model,
         tools=WEB_TOOLS,
-        max_steps=2,
+        max_steps=11,
         verbosity_level=2,
-        planning_interval=3,
+        planning_interval=4,
         name="search_agent",
         description="""A team member that will search the internet to answer your question.
     Ask him for all your questions that require browsing the web.
-    Provide him as much context as possible, in particular if you need to search on a specific timeframe!
-    And don't hesitate to provide him with a complex search task, like finding a difference between two webpages.
+    Resources and API keys for running tools are limited, so optimize your logic and search queries in fews steps.
     Your request must be a real sentence, not a google search! Like "Find me this information (...)" rather than a few keywords.
     """,
         provide_run_summary=True,
@@ -136,10 +136,10 @@ def create_agent_hierarchy(model: Model):
     manager_agent = CodeAgent(
         model=model,
         tools=[visualizer, ti_tool],
-        max_steps=1,
+        max_steps=3,
         verbosity_level=2,
         additional_authorized_imports=AUTHORIZED_IMPORTS,
-        planning_interval=1,
+        planning_interval=4,
         managed_agents=[text_webbrowser_agent],
     )
     return manager_agent
@@ -166,9 +166,9 @@ def answer_single_question(question, model):
 
     agent = create_agent_hierarchy(model)
 
-    augmented_question = """You have one question to answer. It is paramount that you provide a correct answer.
+    augmented_question = create_course_outline_prompt + """You have one question to answer.
 Give it all you can: I know for a fact that you have access to all the relevant tools to solve it and find the correct answer (the answer does exist). Failure or 'I cannot answer' or 'None found' will not be tolerated, success will be rewarded.
-Run verification steps if that's needed, you must make sure you find the correct answer!
+Run verification steps if that's needed. Resources and API keys for running tools are limited, so optimize your logic and search queries in fews steps.
 Here is the task:
 """ + question
 

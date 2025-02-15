@@ -8,7 +8,7 @@ class GoogleSearchScraper:
         load_dotenv()
         self.api_key = os.getenv('SERPAPI_API_KEY')
 
-    def search(self, query: str, num_results: int = 5) -> List[dict]:
+    def search(self, query: str, num_results: int = 2) -> List[dict]:
         try:
             params = {
                 "engine": "google",

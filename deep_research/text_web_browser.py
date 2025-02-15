@@ -8,7 +8,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import unquote, urljoin, urlparse
-
+from bs4 import BeautifulSoup
 import pathvalidate
 import requests
 from serpapi import GoogleSearch
@@ -60,7 +60,7 @@ class SimpleTextBrowser:
         if uri_or_path == "about:blank":
             self._set_page_content("")
         elif uri_or_path.startswith("google:"):
-            self._serpapi_search(uri_or_path[len("google:") :].strip(), filter_year=filter_year)
+            self._duckduckgo_search(uri_or_path[len("google:") :].strip(), filter_year=filter_year)
         else:
             if (
                 not uri_or_path.startswith("http:")
@@ -259,6 +259,80 @@ class SimpleTextBrowser:
         )
 
         self._set_page_content(content)
+
+    def _duckduckgo_search(self, query: str, filter_year: Optional[int] = None) -> None:
+        """
+        Perform a DuckDuckGo search and format results similar to Google search.
+        """
+        try:
+            # Format search query with year filter if specified
+            search_query = query
+            if filter_year is not None:
+                search_query = f"{query} site:/{filter_year}"
+
+            # Make request to DuckDuckGo
+            response = requests.post(
+                "https://html.duckduckgo.com/html/",
+                data={
+                    'q': search_query,
+                    'kl': 'us-en'  # Language/region
+                },
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                },
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            # Parse results using BeautifulSoup
+            soup = BeautifulSoup(response.text, 'html.parser')
+            results = soup.select('.result')
+
+            if not results:
+                year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
+                self._set_page_content(
+                    f"No results found for '{query}'{year_filter_message}. Try with a more general query, or remove the year filter."
+                )
+                return
+
+            def _prev_visit(url):
+                for i in range(len(self.history) - 1, -1, -1):
+                    if self.history[i][0] == url:
+                        return f"You previously visited this page {round(time.time() - self.history[i][1])} seconds ago.\n"
+                return ""
+
+            web_snippets: List[str] = []
+            for idx, result in enumerate(results[:10], 1):  # Limit to top 10 results
+                title_elem = result.select_one('.result__title')
+                snippet_elem = result.select_one('.result__snippet')
+                link_elem = result.select_one('.result__url')
+                
+                if title_elem and link_elem:
+                    title = title_elem.get_text(strip=True)
+                    url = link_elem.get('href', '')
+                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
+
+                    # Filter out unwanted domains
+                    excluded_domains = ['youtube.com', 'facebook.com', 'twitter.com', 'instagram.com']
+                    if not any(domain in url.lower() for domain in excluded_domains):
+                        redacted_version = (
+                            f"{idx}. [{title}]({url})\n"
+                            f"{_prev_visit(url)}"
+                            f"{snippet if snippet else ''}"
+                        )
+                        web_snippets.append(redacted_version)
+
+            content = (
+                f"A DuckDuckGo search for '{query}' found {len(web_snippets)} results:"
+                f"\n\n## Web Results\n" + "\n\n".join(web_snippets)
+            )
+
+            self.page_title = f"{query} - Search"
+            self._set_page_content(content)
+
+        except Exception as e:
+            self.page_title = "Search Error"
+            self._set_page_content(f"## Error\nFailed to perform DuckDuckGo search: {str(e)}")
 
     def _fetch_page(self, url: str) -> None:
         download_path = ""

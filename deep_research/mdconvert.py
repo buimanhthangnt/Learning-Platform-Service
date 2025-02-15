@@ -905,6 +905,8 @@ class MarkdownConverter:
                     # Todo
                     return res
 
+        return DocumentConverterResult()
+        
         # If we got this far without success, report any exceptions
         if len(error_trace) > 0:
             raise FileConversionException(
