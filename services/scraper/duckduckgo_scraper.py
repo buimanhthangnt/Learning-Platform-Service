@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote_plus
 
+
 class DuckDuckGoScraper:
     def __init__(self):
         self.base_url = "https://html.duckduckgo.com/html/"

@@ -3,7 +3,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
+
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = "users"
@@ -14,6 +16,7 @@ class User(Base):
     hashed_password = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     courses = relationship("Course", back_populates="user")
+
 
 class Course(Base):
     __tablename__ = "courses"

@@ -3,6 +3,7 @@ import os
 from serpapi import GoogleSearch
 from dotenv import load_dotenv
 
+
 class GoogleSearchScraper:
     def __init__(self):
         load_dotenv()

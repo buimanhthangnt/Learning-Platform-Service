@@ -5,6 +5,7 @@ from datetime import timedelta
 import isodate
 from dotenv import load_dotenv
 
+
 class YouTubeScraper:
     def __init__(self):
         load_dotenv()
